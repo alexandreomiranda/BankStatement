@@ -1,0 +1,112 @@
+﻿@model IEnumerable<BankStatement.Models.TransactionViewModel>
+@{
+    decimal saldoAnterior;
+    decimal saldoAtualizado;
+    bool saldoPrint = false;
+    ViewBag.Title = "Home Page";
+}
+<div class="container"><h3>Consulta Extrato</h3></div>
+<div class="container">
+    @using (Html.BeginForm())
+    {
+
+        @Html.AntiForgeryToken()
+        <div class="row">
+            <div class="col-md-10">
+                Selecione a conta:
+
+                @Html.DropDownList("ID", String.Empty)
+                Data Inicial:
+
+                @Html.TextBox("initialDate")
+                <input type="submit" value="Search" />
+            </div>
+        </div>
+    }
+
+    @if (Model != null)
+    {
+        if (Model.Any())
+        {
+            <hr />
+            <h4>Extrato da Conta: @Model.FirstOrDefault().Number</h4>
+            saldoAnterior = Model.FirstOrDefault().StartingDayBalance;
+            foreach (var group in Model
+                    .GroupBy(x => x.DateTransaction.ToString("MMMM/yyyy"))
+                    .Select(g => new { Key = g.Key, AccountNumber = g.FirstOrDefault().Number, Itens = g.ToList() }))
+            {
+                <strong>@group.Key.ToUpper()</strong>
+                <table id="tbl" class="table table-condensed">
+                    <thead>
+                        <tr>
+                            <th class="col-md-2">Data</th>
+                            <th class="col-md-3">Histórico</th>
+                            <th class="col-md-2">Valor</th>
+                            <th class="col-md-2">Saldo</th>
+                        </tr>
+                    </thead>
+                    @foreach (var item in group.Itens
+                                .GroupBy(x => x.DateTransaction.ToString("dd/MM/yyyy"))
+                                .Select(g => new
+                                {
+                                    lancamentos = g.ToList(),
+                                    dia = g.FirstOrDefault().DateTransaction
+                                }))
+                    {
+
+                        <tbody>
+                            @if (saldoPrint == false)
+                            {
+                                <tr><td>@item.dia.ToString("dd/MM/yyyy")</td><td>SALDO ANTERIOR</td><td>&nbsp;</td><td>@saldoAnterior</td></tr>
+                            }
+                            
+
+                            @foreach (var lcto in item.lancamentos
+                                .Select(x => new
+                                {
+                                    
+                                    saldoAcumulado = saldoAnterior + x.Value,
+                                    x.DateTransaction,
+                                    x.Description,
+                                    x.Value
+                                }))
+                            {
+                                <tr>
+                                    <td>@lcto.DateTransaction.ToString("dd/MM/yyyy")</td>
+                                    <td>@lcto.Description</td>
+                                    <td>@lcto.Value</td>
+                                    <td>&nbsp;</td> <!-- lcto.saldoAcumulado -->
+                                </tr>
+                                saldoAnterior = @lcto.saldoAcumulado;
+                                saldoPrint = true;
+                            }
+                            <tr><td>@item.dia.ToString("dd/MM/yyyy")</td><td>SALDO FINAL</td><td>&nbsp;</td><td>@saldoAnterior</td></tr>
+                        </tbody>
+                        
+                    }
+                </table>
+            }
+        }
+        else { 
+            <br />
+            <div class="row">Nenhum registro encontrado!</div>
+        }
+    }
+
+</div>
+@section scripts {
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $('#initialDate').datepicker({
+                dateFormat: 'dd/mm/yy'
+            });
+        });
+        $(function () {
+            $('#tbl > tbody > tr td:nth-child(n+3)').each(function () {
+                if (parseFloat($(this).text().replace(',', '.')).toFixed(2) < 0) {
+                    $(this).addClass('negative');
+                }
+            });
+        });
+    </script>
+}
